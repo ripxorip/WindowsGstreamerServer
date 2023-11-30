@@ -1,6 +1,7 @@
 #include <gst/gst.h>
 
 int main(int argc, char *argv[]) {
+    // An example client: gst-launch-1.0 -v pulsesrc buffer-time=100000 latency-time=10000 ! opusenc ! rtpopuspay ! queue max-size-buffers=200 max-size-time=20000000 max-size-bytes=2000 ! udpsink host=100.106.115.19 port=5137 buffer-size=200
     // Initialize GStreamer
     gst_init(&argc, &argv);
 
@@ -15,28 +16,32 @@ int main(int argc, char *argv[]) {
     GstElement *udpsrc = gst_element_factory_make("udpsrc", "udp-source");
     GstElement *capsfilter = gst_element_factory_make("capsfilter", "caps-filter");
     GstElement *rtpopusdepay = gst_element_factory_make("rtpopusdepay", "rtp-opus-depay");
+    GstElement *queue = gst_element_factory_make("queue", "queue");
     GstElement *opusdec = gst_element_factory_make("opusdec", "opus-decoder");
     GstElement *audioconvert = gst_element_factory_make("audioconvert", "audio-convert");
     GstElement *audioresample = gst_element_factory_make("audioresample", "audio-resample");
     GstElement *autoaudiosink = gst_element_factory_make("autoaudiosink", "auto-audio-sink");
 
     // Check if all elements are created successfully
-    if (!pipeline || !udpsrc || !capsfilter || !rtpopusdepay || !opusdec || !audioconvert || !audioresample || !autoaudiosink) {
+    if (!pipeline || !udpsrc || !capsfilter || !rtpopusdepay || !queue || !opusdec || !audioconvert || !audioresample || !autoaudiosink) {
         g_printerr("Not all elements could be created.\n");
         return -1;
     }
 
     // Set UDP source properties
-    g_object_set(G_OBJECT(udpsrc), "port", 5137, NULL);
+    g_object_set(G_OBJECT(udpsrc), "port", 5137, "buffer-size", 200, NULL);
     
     // Set capsfilter properties
     GstCaps *caps = gst_caps_from_string("application/x-rtp,media=(string)audio,clock-rate=(int)48000,encoding-name=(string)OPUS,payload=(int)96");
     g_object_set(G_OBJECT(capsfilter), "caps", caps, NULL);
     gst_caps_unref(caps);
 
+    // Set queue properties
+    g_object_set(G_OBJECT(queue), "max-size-time", 20000000, NULL);
+
     // Build the pipeline
-    gst_bin_add_many(GST_BIN(pipeline), udpsrc, capsfilter, rtpopusdepay, opusdec, audioconvert, audioresample, autoaudiosink, NULL);
-    gst_element_link_many(udpsrc, capsfilter, rtpopusdepay, opusdec, audioconvert, audioresample, autoaudiosink, NULL);
+    gst_bin_add_many(GST_BIN(pipeline), udpsrc, capsfilter, rtpopusdepay, queue, opusdec, audioconvert, audioresample, autoaudiosink, NULL);
+    gst_element_link_many(udpsrc, capsfilter, rtpopusdepay, queue, opusdec, audioconvert, audioresample, autoaudiosink, NULL);
 
     // Set the pipeline to the playing state
     gst_element_set_state(pipeline, GST_STATE_PLAYING);
